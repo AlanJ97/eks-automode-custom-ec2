@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: stress-test
   minReplicas: 5
-  maxReplicas: 50
+  maxReplicas: 24
   metrics:
   - type: Resource
     resource:

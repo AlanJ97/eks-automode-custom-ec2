@@ -5,7 +5,7 @@ metadata:
   name: memory-test
   namespace: default
 spec:
-  replicas: 5  # Reducido a 5 réplicas
+  replicas: 3  # Limitar para no exceder 6 nodos
   selector:
     matchLabels:
       app: memory-test

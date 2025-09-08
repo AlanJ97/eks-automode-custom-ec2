@@ -4,8 +4,8 @@ kind: Job
 metadata:
   name: quick-scale-test
 spec:
-  parallelism: 4  # Reducido a 4 jobs en paralelo
-  completions: 4
+  parallelism: 3  # Limitar para no exceder 6 nodos
+  completions: 3
   template:
     spec:
       nodeSelector:

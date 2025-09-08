@@ -4,8 +4,8 @@ kind: Job
 metadata:
   name: super-quick-test
 spec:
-  parallelism: 3
-  completions: 3
+  parallelism: 2
+  completions: 2
   template:
     spec:
       nodeSelector:

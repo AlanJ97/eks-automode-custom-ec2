@@ -29,6 +29,16 @@ output "cluster_iam_role_name" {
   value       = aws_iam_role.eks_cluster.name
 }
 
+output "node_iam_role_arn" {
+  description = "IAM role ARN for the EKS nodes"
+  value       = aws_iam_role.eks_node.arn
+}
+
+output "node_iam_role_name" {
+  description = "IAM role name for the EKS nodes"
+  value       = aws_iam_role.eks_node.name
+}
+
 output "cluster_sg_id" {
   description = "Security group ID for the EKS cluster"
   value       = data.terraform_remote_state.vpc.outputs.cluster_sg_id

@@ -1,6 +1,18 @@
 # Guía de Testing para EKS Auto Mode
 
-## Tipos de Tests Recomendados
+## 0. Prerrequisitos
+Antes de iniciar:
+- Clúster EKS (repo1) listo y accesible (contexto de `kubectl` correcto).
+- NodeClass / NodePool (repo2) aplicados (NodePool con límite CPU=24 / Mem=48Gi).
+- Regla **puerto 443 SG→SG** existente (desde VPC) para que los nodos se registren.
+- (Opcional) Métricas habilitadas (`kubectl top`) vía Metrics Server si se desean datos de uso.
+
+Si la carpeta de manifiestos cambió a `test/` en vez de `tests/`, sustituye la ruta en los comandos (ambos nombres se mencionan aquí). Verifica con:
+```bash
+ls -1 test 2>/dev/null || ls -1 tests
+```
+
+## 1. Tipos de Tests Recomendados
 
 ### 1. **Tests de Escalado Horizontal (Node Provisioning)**
 Objetivo: Validar que Karpenter provisiona nuevos nodos c7i.xlarge cuando hay demanda.
@@ -35,9 +47,85 @@ Objetivo: Verificar recuperación ante fallos y comportamiento en escenarios adv
 - Pods sin recursos suficientes
 - Network partitions temporales
 
-## Cómo Ejecutar los Tests
+## 2. Flujo Sugerido de Prueba de Escalado Máximo (Paso a Paso) ⭐
+Objetivo: Forzar creación de nodos hasta alcanzar el límite (≈ 6 nodos c7i.xlarge) y validar consolidación.
+
+1. Estado inicial (cero o pocos nodos de workload):
+  ```bash
+  kubectl get nodes -o wide
+  kubectl get nodeclaim,nodepool -A
+  ```
+2. Aplicar despliegue de estrés base (crea 6 réplicas con CPU sostenida):
+  ```bash
+  kubectl apply -f tests/stress-test.yaml
+  # o si está en carpeta singular
+  kubectl apply -f test/stress-test.yaml
+  ```
+3. Esperar 1–3 minutos y observar NodeClaims creados:
+  ```bash
+  watch -n 15 'kubectl get nodeclaim; echo "---"; kubectl get nodes -o wide | grep c7i'
+  ```
+4. Añadir carga de memoria para diversificar uso de recursos:
+  ```bash
+  kubectl apply -f tests/memory-test.yaml
+  ```
+5. Activar HPA para inducir aumentos de réplicas dinámicos (sobre el deployment stress-test):
+  ```bash
+  kubectl apply -f tests/hpa-test.yaml
+  ```
+6. (Opcional) Escalar manualmente para acelerar demanda:
+  ```bash
+  kubectl scale deployment stress-test --replicas=12
+  kubectl scale deployment memory-test --replicas=8
+  ```
+7. Validar que no se superen los límites del NodePool (observa que, al alcanzar ~24 vCPU solicitados, se detiene el incremento de nodos):
+  ```bash
+  kubectl describe nodepool c7i-xlarge-pool | grep -i limit -A3
+  ```
+8. Confirmar distribución multi-AZ (etiqueta `topology.kubernetes.io/zone`):
+  ```bash
+  kubectl get nodes -L topology.kubernetes.io/zone -o wide
+  ```
+9. Revisar eventos recientes (creación / consolidación / underutilized):
+  ```bash
+  kubectl get events --sort-by=.lastTimestamp | grep -i -E 'Karpenter|Consolidat' | tail -30
+  ```
+10. (Tras la prueba) Reducir réplicas para observar consolidación (si no hay carga, nodos se liberan):
+   ```bash
+   kubectl scale deployment stress-test --replicas=0
+   kubectl scale deployment memory-test --replicas=0
+   ```
+11. Esperar periodo de `consolidateAfter` (60s) + tiempo de terminación y verificar nodos removidos:
+   ```bash
+   watch -n 20 'kubectl get nodes; echo "---"; kubectl get nodeclaim'
+   ```
+
+📌 Nota: La consolidación solo elimina nodos cuando están vacíos o infrautilizados según lógica de Karpenter.
+
+## 3. Cómo Ejecutar los Tests
 
 ### Opción 1: Script Automatizado (Recomendado)
+Dispones de dos variantes según el sistema:
+
+| Script | Entorno | Ejemplo de uso |
+|--------|---------|----------------|
+| `test-auto-mode.ps1` | Windows PowerShell | `./test-auto-mode.ps1` |
+| `test-auto-mode.sh`  | Linux / macOS / Git Bash | `bash tests/test-auto-mode.sh --menu` |
+
+Modos del script bash:
+```
+--quick      # Jobs rápidos (super / quick)
+--stress     # stress + memory + hpa (~5 min monitoreo)
+--complete   # Flujo completo (estado, despliegue, escala, resultados)
+--cleanup    # Limpieza de workloads
+--menu       # Menú interactivo (por defecto)
+```
+Ejemplo rápido (Git Bash):
+```bash
+chmod +x tests/test-auto-mode.sh
+bash tests/test-auto-mode.sh --stress
+```
+Si `kubectl` no se detecta en Git Bash, asegúrate de que esté en el PATH o ejecuta primero desde PowerShell para confirmar acceso.
 ```powershell
 # Ejecutar el suite completo de tests
 .\test-auto-mode.ps1
@@ -108,7 +196,7 @@ kubectl get hpa -w
 kubectl get pods -w
 ```
 
-## Comandos de Monitoreo Útiles
+## 4. Comandos de Monitoreo Útiles
 
 ### Estado General
 ```bash
@@ -149,7 +237,7 @@ kubectl describe pod <pod-name>
 kubectl get nodes --show-labels
 ```
 
-## Métricas de Éxito
+## 5. Métricas de Éxito
 
 ### ✅ Indicadores Positivos
 - **Tiempo de provisión**: Nuevos nodos c7i.xlarge aparecen en < 5 minutos
@@ -165,7 +253,7 @@ kubectl get nodes --show-labels
 - Errores de autorización en eventos de Karpenter
 - Nodos que no se unen al cluster
 
-## Scripts de Limpieza
+## 6. Scripts de Limpieza
 
 ### Limpiar Tests Específicos
 ```bash
@@ -184,7 +272,7 @@ kubectl get nodeclaim
 kubectl delete nodeclaim <nodeclaim-name>
 ```
 
-## Interpretación de Resultados
+## 7. Interpretación de Resultados
 
 ### Escenario Normal
 ```
@@ -202,7 +290,7 @@ EVENTS: Errores de autorización o límites
 TIMING: > 10 minutos sin provisión
 ```
 
-## Consideraciones de Costo
+## 8. Consideraciones de Costo
 
 **⚠️ IMPORTANTE**: Los tests generarán costo por:
 - Instancias EC2 c7i.xlarge ($0.2448/hora por instancia)
@@ -211,7 +299,7 @@ TIMING: > 10 minutos sin provisión
 
 **Recomendación**: Ejecutar tests en horarios planificados y limpiar recursos inmediatamente después.
 
-## Automatización y CI/CD
+## 9. Automatización y CI/CD
 
 Para integrar estos tests en pipelines:
 
@@ -238,4 +326,19 @@ test-auto-mode:
       if: always()
 ```
 
-Esta guía te proporciona un framework completo para validar que tu EKS Auto Mode funciona correctamente con instancias c7i.xlarge.
+## 10. Buenas Prácticas Operativas
+| Práctica | Razón |
+|----------|-------|
+| Limitar replicas iniciales | Evita picos de costo inesperados |
+| Revisar eventos antes de escalar más | Detecta throttling / permisos |
+| Registrar tiempos de provisión | Métrica clave para SLO interno |
+| Limpiar workloads tras cada experimento | Minimiza gastos |
+| Verificar `kubectl get nodeclaim` vs `kubectl get nodes` | Detecta retrasos de join |
+
+## 11. Notas sobre Add-on EBS CSI DEGRADADO
+Si en la consola el add-on EBS CSI aparece DEGRADADO pero el clúster y NodePool están operativos:
+- Puedes proceder con estas pruebas: la actividad (creación de pods con volúmenes futuros) y/o un re-aplicar del módulo de clúster suelen normalizarlo.
+- Si Terraform quedó esperando más de 20 minutos, cancelar (Ctrl+C) y continuar con pruebas no afecta este flujo.
+
+---
+Esta guía proporciona un framework completo para validar que tu EKS Auto Mode funciona correctamente con instancias c7i.xlarge y límites definidos.

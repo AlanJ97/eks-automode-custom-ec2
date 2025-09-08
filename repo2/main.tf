@@ -46,7 +46,7 @@ resource "kubectl_manifest" "nodeclass" {
     metadata:
       name: ${var.node_class_name}
     spec:
-      role: ${data.terraform_remote_state.eks.outputs.cluster_iam_role_name}
+      role: ${data.terraform_remote_state.eks.outputs.node_iam_role_name}
       subnetSelectorTerms:
         - tags:
             "kubernetes.io/cluster/${data.terraform_remote_state.eks.outputs.cluster_name}": "shared"
@@ -68,22 +68,19 @@ resource "kubectl_manifest" "nodepool" {
       template:
         metadata:
           labels:
-            app-tier: web
+            workload-type: web
         spec:
           nodeClassRef:
             group: eks.amazonaws.com
             kind: NodeClass
             name: ${var.node_class_name}
           requirements:
-            - key: "eks.amazonaws.com/instance-category"
+            - key: "node.kubernetes.io/instance-type"
               operator: In
-              values: ["c"]
-            - key: "eks.amazonaws.com/instance-family"
+              values: ["c7i.xlarge"]
+            - key: "kubernetes.io/arch"
               operator: In
-              values: ["c7i"]
-            - key: "eks.amazonaws.com/instance-size"
-              operator: In
-              values: ["xlarge"]
+              values: ["amd64"]
             - key: "karpenter.sh/capacity-type"
               operator: In
               values: ["on-demand"]
@@ -91,7 +88,8 @@ resource "kubectl_manifest" "nodepool" {
         consolidationPolicy: WhenEmptyOrUnderutilized
         consolidateAfter : 60s
       limits:
-        cpu: 1000
+        cpu: 24
+        memory: 48Gi
   YAML
   depends_on = [kubectl_manifest.nodeclass]
 }

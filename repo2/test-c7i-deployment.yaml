@@ -5,7 +5,7 @@ metadata:
   labels:
     app: nginx-c7i-test
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: nginx-c7i-test
@@ -14,25 +14,33 @@ spec:
       labels:
         app: nginx-c7i-test
     spec:
+      nodeSelector:
+        workload-type: web
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: ["c7i.xlarge"]
       containers:
       - name: nginx
-        image: nginx:latest
+        image: nginx:stable
         ports:
         - containerPort: 80
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 750m
+            memory: 768Mi
           limits:
-            cpu: 500m
-            memory: 512Mi
-      nodeSelector:
-        workload-type: web  # Align label with NodePool (was app-tier)
+            cpu: 1500m
+            memory: 1.5Gi
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-c7i-service
+  name: nginx-c7i-test-svc
 spec:
   selector:
     app: nginx-c7i-test
@@ -40,4 +48,4 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 80
-  type: LoadBalancer
+  type: ClusterIP

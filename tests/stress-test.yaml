@@ -5,7 +5,7 @@ metadata:
   name: stress-test
   namespace: default
 spec:
-  replicas: 8  # Reducido a 8 réplicas para test más rápido
+  replicas: 6  # Limitar para no exceder 6 nodos
   selector:
     matchLabels:
       app: stress-test
