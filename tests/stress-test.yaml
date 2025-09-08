@@ -1,0 +1,46 @@
+# Test de estrés para validar el escalado automático de EKS Auto Mode
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stress-test
+  namespace: default
+spec:
+  replicas: 8  # Reducido a 8 réplicas para test más rápido
+  selector:
+    matchLabels:
+      app: stress-test
+  template:
+    metadata:
+      labels:
+        app: stress-test
+    spec:
+      nodeSelector:
+        karpenter.sh/capacity-type: on-demand
+        node.kubernetes.io/instance-type: c7i.xlarge
+      containers:
+      - name: stress
+        image: polinux/stress
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"  # 1 CPU core
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"  # 2 CPU cores
+        command: ["stress"]
+        args: ["--cpu", "2", "--timeout", "180s"]  # 3 minutos de estrés
+      tolerations:
+      - operator: Exists
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stress-test-service
+spec:
+  selector:
+    app: stress-test
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP

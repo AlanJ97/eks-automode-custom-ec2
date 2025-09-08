@@ -1,0 +1,29 @@
+# Test ultra-rápido de 3 minutos para validar Auto Mode
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: super-quick-test
+spec:
+  parallelism: 3
+  completions: 3
+  template:
+    spec:
+      nodeSelector:
+        karpenter.sh/capacity-type: on-demand
+        node.kubernetes.io/instance-type: c7i.xlarge
+      containers:
+      - name: quick-test
+        image: busybox
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        command: ["sh", "-c"]
+        args: ["echo 'Quick Auto Mode test started'; sleep 90; echo 'Quick test completed'"]
+      restartPolicy: Never
+      tolerations:
+      - operator: Exists
+  backoffLimit: 2

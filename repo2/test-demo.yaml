@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-c7i-test
+  labels:
+    app: nginx-c7i-test
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-c7i-test
+  template:
+    metadata:
+      labels:
+        app: nginx-c7i-test
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      nodeSelector:
+        app-tier: web  # This will trigger our custom NodePool
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-c7i-service
+spec:
+  selector:
+    app: nginx-c7i-test
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: LoadBalancer

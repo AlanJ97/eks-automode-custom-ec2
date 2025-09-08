@@ -1,0 +1,33 @@
+# Test de memory-intensive para probar diferentes tipos de carga
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-test
+  namespace: default
+spec:
+  replicas: 5  # Reducido a 5 réplicas
+  selector:
+    matchLabels:
+      app: memory-test
+  template:
+    metadata:
+      labels:
+        app: memory-test
+    spec:
+      nodeSelector:
+        karpenter.sh/capacity-type: on-demand
+        node.kubernetes.io/instance-type: c7i.xlarge
+      containers:
+      - name: memory-consumer
+        image: polinux/stress
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "1000m"
+        command: ["stress"]
+        args: ["--vm", "1", "--vm-bytes", "2G", "--timeout", "240s"]  # 4 minutos
+      tolerations:
+      - operator: Exists

@@ -1,0 +1,29 @@
+# Tests simples para validación rápida
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: quick-scale-test
+spec:
+  parallelism: 4  # Reducido a 4 jobs en paralelo
+  completions: 4
+  template:
+    spec:
+      nodeSelector:
+        karpenter.sh/capacity-type: on-demand
+        node.kubernetes.io/instance-type: c7i.xlarge
+      containers:
+      - name: scale-test
+        image: busybox
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        command: ["sh", "-c"]
+        args: ["echo 'Testing node provisioning'; sleep 120; echo 'Test completed'"]  # 2 minutos
+      restartPolicy: Never
+      tolerations:
+      - operator: Exists
+  backoffLimit: 3
