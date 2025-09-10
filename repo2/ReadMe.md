@@ -132,3 +132,4 @@ terraform destroy -var-file="dev-vars.tfvars" -auto-approve
 ---
 Documentación enfocada en la CAPA DE CÓMPUTO (repo2) sin incluir todavía pasos operativos kubectl.
 
+
