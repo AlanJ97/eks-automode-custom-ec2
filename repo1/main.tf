@@ -222,6 +222,32 @@ resource "aws_eks_addon" "pod_identity_agent" {
   depends_on = [aws_eks_cluster.this]
 }
 
+# --------- CoreDNS Add-on (DNS para el cluster) ----------
+# Si el addon ya existe en el clúster, impórtalo antes de aplicar:
+# terraform import aws_eks_addon.coredns <cluster_name>:coredns
+resource "aws_eks_addon" "coredns" {
+  cluster_name                = aws_eks_cluster.this.name
+  addon_name                  = "coredns"
+  # No fijamos addon_version para que AWS seleccione la recomendada según la versión de EKS
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [aws_eks_cluster.this]
+}
+
+# --------- VPC CNI Add-on (networking/IPAM) ----------
+# Si el addon ya existe en el clúster, impórtalo antes de aplicar:
+# terraform import aws_eks_addon.vpc_cni <cluster_name>:vpc-cni
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name                = aws_eks_cluster.this.name
+  addon_name                  = "vpc-cni"
+  # Dejamos que AWS elija la versión compatible por defecto
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [aws_eks_cluster.this]
+}
+
 # --------- Network rule: allow API (443) from cluster SG to itself ----------
 # Auto Mode nodes attach the cluster SG; allow them to reach the private API endpoint.
 // SG self-ingress rule moved to VPC repo to keep networking concerns localized.

@@ -1,0 +1,48 @@
+# Test para validar límite máximo de 6 nodos c7i.xlarge
+# Este deployment intenta forzar más de 6 nodos para confirmar que se respetan los límites
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: limit-validation-test
+  namespace: default
+spec:
+  replicas: 50  # Intentar 50 pods para forzar muchos nodos
+  selector:
+    matchLabels:
+      app: limit-test
+  template:
+    metadata:
+      labels:
+        app: limit-test
+    spec:
+      nodeSelector:
+        workload-type: web              # Fuerza uso del NodePool c7i-xlarge-pool
+        karpenter.sh/nodepool: c7i-xlarge-pool  # Especifica NodePool exacto
+        node.kubernetes.io/instance-type: c7i.xlarge
+      containers:
+      - name: resource-hog
+        image: busybox
+        resources:
+          requests:
+            memory: "3Gi"    # Casi la mitad de memoria de un c7i.xlarge (8Gi total)
+            cpu: "1500m"     # 1.5 CPU cores de 4 disponibles
+          limits:
+            memory: "3.5Gi"
+            cpu: "2000m"
+        command: ["sh", "-c"]
+        args: ["echo 'Limit test pod started'; sleep 300; echo 'Test completed'"]  # 5 minutos
+      tolerations:
+      - operator: Exists  # Puede programarse en cualquier nodo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: limit-test-service
+spec:
+  selector:
+    app: limit-test
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
